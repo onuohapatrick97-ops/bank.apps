@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Banks</title>
+<style>
+  :root { --accent: #6366f1; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #f1f5f9; color: #0f172a; min-height: 100vh; overflow-x: hidden;
+  }
+  #splashScreen {
+    position: fixed; inset: 0;
+    background: linear-gradient(135deg, #0f172a, #312e81, #6366f1);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 900; color: white;
+    transition: opacity 0.5s ease;
+  }
+  #splashScreen.hide { opacity: 0; pointer-events: none; }
+  .splash-logo {
+    width: 80px; height: 80px; border-radius: 22px;
+    background: rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px; margin-bottom: 20px;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+  }
+  .splash-name { font-size: 22px; font-weight: 800; letter-spacing: 1.5px; }
+  .splash-sub { font-size: 11px; opacity: 0.6; margin-top: 6px; letter-spacing: 3px; text-transform: uppercase; }
+  #loadingOverlay {
+    position: fixed; inset: 0;
+    background: rgba(15,23,42,0.6);
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 14px;
+    z-index: 800;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  #loadingOverlay.show { opacity: 1; pointer-events: auto; }
+  .spinner {
+    width: 42px; height: 42px;
+    border: 4px solid rgba(255,255,255,0.15);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { color: white; font-size: 13px; font-weight: 600; }
+  #loginScreen {
+    position: fixed; inset: 0;
+    background: linear-gradient(135deg, #0f172a, #312e81, #6366f1);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; z-index: 500;
+    transition: opacity 0.4s ease;
+  }
+  #loginScreen.hide { opacity: 0; pointer-events: none; }
+  .login-box {
+    background: rgba(255,255,255,0.98);
+    border-radius: 24px; padding: 36px 26px;
+    width: 100%; max-width: 380px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+  }
+  .login-logo {
+    width: 60px; height: 60px; border-radius: 18px;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; color: white;
+    margin: 0 auto 16px;
+    box-shadow: 0 10px 30px rgba(99,102,241,0.4);
+  }
+  .login-title { text-align: center; font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+  .login-sub { text-align: center; font-size: 13px; color: #64748b; margin-bottom: 26px; }
+  .login-field { margin-bottom: 14px; }
+  .login-field label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px; }
+  .login-field input {
+    width: 100%; padding: 14px 16px; border-radius: 12px;
+    border: 1.5px solid #e2e8f0; background: #f8fafc;
+    font-size: 14px; font-family: inherit; outline: none;
+  }
+  .login-field input:focus { border-color: #8b5cf6; background: white; box-shadow: 0 0 0 4px rgba(139,92,246,0.12); }
+  .login-btn {
+    width: 100%; padding: 15px; border-radius: 12px; border: none;
+    background: linear-gradient(90deg, #6366f1, #a855f7);
+    color: white; font-size: 15px; font-weight: 700;
+    cursor: pointer; font-family: inherit; margin-top: 8px;
+  }
+  .login-btn:active { transform: scale(0.98); }
+  .login-error {
+    background: #fee2e2; color: #dc2626;
+    padding: 10px 14px; border-radius: 10px;
+    font-size: 12.5px; margin-bottom: 14px;
+    display: none; font-weight: 600;
+  }
+  .login-error.show { display: block; }
+  .login-hint {
+    font-size: 11px; color: #94a3b8; margin-top: 18px;
+    text-align: center; line-height: 1.7;
+    border-top: 1px solid #e2e8f0; padding-top: 14px;
+  }
+  .login-hint strong { color: #6366f1; }
+  #appScreen { opacity: 0; transition: opacity 0.4s ease; pointer-events: none; }
+  #appScreen.show { opacity: 1; pointer-events: auto; }
+  .demo-tag {
+    position: fixed; top: 8px; right: 8px;
+    background: rgba(0,0,0,0.35);
+    color: rgba(255,255,255,0.85);
+    font-size: 9px; font-weight: 700;
+    padding: 3px 8px; border-radius: 6px;
+    letter-spacing: 1px; z-index: 999;
+    pointer-events: none;
+  }
+  .frozen-banner {
+    display: none; position: fixed; top: 0; left: 0; right: 0;
+    background: linear-gradient(90deg, #dc2626, #ef4444);
+    color: white; text-align: center;
+    padding: 10px; font-size: 13px; font-weight: 700;
+    z-index: 998;
+  }
+  .frozen-banner.show { display: block; }
+  body.frozen .main, body.frozen .balance-card, body.frozen .virtual-card {
+    opacity: 0.5; pointer-events: none; filter: grayscale(0.6);
+  }
+  .header {
+    background: linear-gradient(135deg, #312e81, #6366f1, #a855f7);
+    padding: 20px; color: white; position: relative; overflow: hidden;
+    transition: background 0.4s ease;
+  }
+  .header::before {
+    content: ""; position: absolute; width: 200px; height: 200px;
+    background: rgba(255,255,255,0.08); border-radius: 50%;
+    top: -80px; right: -60px;
+  }
+  .header-top {
+    display: flex; justify-content: space-between; align-items: center;
+    position: relative; z-index: 1; margin-bottom: 22px;
+  }
+  .menu-btn {
+    background: rgba(255,255,255,0.2); border: none;
+    width: 40px; height: 40px; border-radius: 12px; color: white;
+    font-size: 20px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .user-info { display: flex; align-items: center; gap: 10px; }
+  .avatar {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: rgba(255,255,255,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px;
+  }
+  .user-name { font-size: 14px; font-weight: 600; }
+  .user-role { font-size: 11px; opacity: 0.8; }
+  .balance-card {
+    position: relative; z-index: 1;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 20px; padding: 22px;
+  }
+  .balance-label {
+    font-size: 12px; opacity: 0.85; letter-spacing: 0.5px;
+    text-transform: uppercase; margin-bottom: 8px;
+  }
+  .balance-amount { font-size: 34px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 6px; }
+  .balance-growth {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(34,197,94,0.25); color: #bbf7d0;
+    font-size: 12px; font-weight: 600;
+    padding: 4px 10px; border-radius: 20px; margin-bottom: 14px;
+  }
+  .balance-warning {
+    display: none; background: rgba(239,68,68,0.3); color: #fecaca;
+    font-size: 11px; font-weight: 700;
+    padding: 5px 10px; border-radius: 10px;
+    margin-bottom: 10px;
+    border: 1px solid rgba(239,68,68,0.5);
+  }
+  .balance-warning.show { display: inline-block; }
+  .account-line { display: flex; justify-content: space-between; font-size: 12px; opacity: 0.9; margin-bottom: 4px; }
+  .account-line span:first-child { opacity: 0.75; }
+  .quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
+  .qa-btn {
+    background: rgba(255,255,255,0.95); border: none;
+    padding: 12px 8px; border-radius: 14px; color: var(--accent);
+    font-weight: 700; font-size: 12px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 6px; font-family: inherit;
+  }
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 90;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .sidebar {
+    position: fixed; top: 0; left: 0; width: 260px; height: 100vh;
+    background: linear-gradient(180deg, #0f172a, #312e81); color: white;
+    transform: translateX(-100%); transition: transform 0.3s ease;
+    z-index: 100; padding: 20px 0; overflow-y: auto;
+  }
+  .sidebar.show { transform: translateX(0); }
+  .sidebar-header { padding: 0 22px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px; }
+  .sidebar-header h2 {
+    font-size: 18px;
+    background: linear-gradient(90deg, #a5b4fc, #f0abfc);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .sidebar-header p { font-size: 11px; opacity: 0.6; margin-top: 3px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 14px;
+    padding: 13px 22px; color: #cbd5e1; font-size: 14px;
+    cursor: pointer; border-left: 3px solid transparent;
+  }
+  .nav-item:hover, .nav-item.active {
+    background: rgba(255,255,255,0.08); color: white;
+    border-left-color: var(--accent);
+  }
+  .nav-item .icon { font-size: 17px; width: 22px; text-align: center; }
+  .main { padding: 20px; max-width: 700px; margin: 0 auto; }
+  .section-title {
+    font-size: 15px; font-weight: 700; margin-bottom: 12px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .section-title .view-all { font-size: 12px; color: var(--accent); font-weight: 600; cursor: pointer; }
+  .card {
+    background: white; border-radius: 16px; padding: 18px;
+    box-shadow: 0 4px 16px rgba(15,23,42,0.06); margin-bottom: 16px;
+  }
+  .mini-balance {
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    border-radius: 16px; padding: 18px;
+    color: white; margin-bottom: 16px;
+    transition: background 0.4s ease;
+  }
+  .mini-balance .label { font-size: 11px; opacity: 0.85; text-transform: uppercase; margin-bottom: 4px; }
+  .mini-balance .amount { font-size: 26px; font-weight: 800; }
+  .virtual-card {
+    background: linear-gradient(135deg, #312e81, #6366f1, #a855f7);
+    border-radius: 18px; padding: 22px; color: white;
+    position: relative; overflow: hidden;
+    margin-bottom: 16px;
+    transition: background 0.4s ease;
+  }
+  .virtual-card::before {
+    content: ""; position: absolute; width: 180px; height: 180px;
+    background: rgba(255,255,255,0.1); border-radius: 50%;
+    top: -60px; right: -40px;
+  }
+  .virtual-card.alt-card { background: linear-gradient(135deg, #0f172a, #334155); }
+  .vc-top {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 30px; position: relative; z-index: 1;
+  }
+  .vc-brand { font-size: 13px; font-weight: 700; letter-spacing: 1px; }
+  .vc-type { font-size: 10px; opacity: 0.8; letter-spacing: 1px; }
+  .vc-number {
+    font-size: 18px; letter-spacing: 3px; font-weight: 600;
+    margin-bottom: 20px; position: relative; z-index: 1;
+    font-family: "Courier New", monospace;
+  }
+  .vc-bottom { display: flex; justify-content: space-between; font-size: 11px; position: relative; z-index: 1; }
+  .vc-bottom div span { opacity: 0.7; display: block; margin-bottom: 2px; font-size: 9px; }
+  .vc-bottom div strong { font-weight: 600; }
+  .tx-list { list-style: none; }
+  .tx-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid #f1f5f9;
+  }
+  .tx-item:last-child { border-bottom: none; }
+  .tx-icon {
+    width: 40px; height: 40px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; flex-shrink: 0; font-weight: 700;
+  }
+  .tx-icon.in { background: #dcfce7; color: #16a34a; }
+  .tx-icon.out { background: #fee2e2; color: #dc2626; }
+  .tx-info { flex: 1; min-width: 0; }
+  .tx-desc {
+    font-size: 13.5px; font-weight: 600; color: #0f172a;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tx-meta { font-size: 11.5px; color: #94a3b8; margin-top: 2px; }
+  .tx-meta .status {
+    display: inline-block; padding: 1px 7px; border-radius: 20px;
+    font-weight: 600; font-size: 10px; margin-left: 6px;
+  }
+  .status.completed { background: #dcfce7; color: #16a34a; }
+  .status.pending { background: #fef3c7; color: #d97706; }
+  .tx-amount { font-size: 14px; font-weight: 700; flex-shrink: 0; }
+  .tx-amount.in { color: #16a34a; }
+  .tx-amount.out { color: #dc2626; }
+  .month-divider {
+    font-size: 12px; font-weight: 700; color: #64748b;
+    background: #f1f5f9; padding: 6px 12px; border-radius: 8px;
+    margin: 18px 0 8px; display: inline-block;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px; }
+  .form-group input, .form-group select {
+    width: 100%; padding: 12px; border-radius: 10px;
+    border: 1.5px solid #e2e8f0; background: #f8fafc;
+    font-size: 14px; font-family: inherit; outline: none; color: #0f172a;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--accent); background: white; }
+  .btn-primary {
+    width: 100%; padding: 14px; border-radius: 12px; border: none;
+    background: linear-gradient(90deg, #6366f1, #a855f7);
+    color: white; font-size: 15px; font-weight: 700;
+    cursor: pointer; font-family: inherit; margin-top: 4px;
+  }
+  .danger-btn {
+    width: 100%; padding: 14px; border-radius: 12px; border: none;
+    background: linear-gradient(90deg, #dc2626, #ef4444);
+    color: white; font-size: 15px; font-weight: 700;
+    cursor: pointer; font-family: inherit; margin-top: 4px;
+  }
+  #toast {
+    position: fixed; bottom: 30px; left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #0f172a; color: white;
+    padding: 12px 22px; border-radius: 12px;
+    font-size: 13px; font-weight: 600;
+    transition: transform 0.3s ease;
+    z-index: 200; pointer-events: none;
+    max-width: 90%; text-align: center;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  .footer {
+    text-align: center; padding: 30px 20px 40px;
+    font-size: 11px; color: #94a3b8;
+  }
+  .page { display: none; }
+  .page.active { display: block; }
+  @media (max-width: 380px) {
+    .balance-amount { font-size: 28px; }
+    .vc-number { font-size: 15px; letter-spacing: 2px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="splashScreen">
+  <div class="splash-logo">🏦</div>
+  <div class="splash-name">BANKS</div>
+  <div class="splash-sub">Two Banks. One App.</div>
+</div>
+
+<div id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text">Loading...</div>
+</div>
+
+<div id="loginScreen" class="hide">
+  <div class="login-box">
+    <div class="login-logo">🏦</div>
+    <div class="login-title">Sign In</div>
+    <div class="login-sub">Choose your bank account</div>
+
+    <div class="login-error" id="loginError"></div>
+
+    <div class="login-field">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="off">
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="off">
+    </div>
+
+    <button class="login-btn" id="loginBtn">Sign In</button>
+
+    <div class="login-hint">
+      <strong>Apex Capital:</strong> patrick@apex.com / Patrick$7<br>
+      <strong>CyberbankPAT:</strong> ayomide@cyber.com / Ayomide$7
+    </div>
+  </div>
+</div>
+
+<div id="appScreen">
+
+  <div class="demo-tag">DEMO</div>
+  <div id="frozenBanner" class="frozen-banner">❄️ Account Frozen — <span id="freezeTimer">3:00</span></div>
+
+  <div class="overlay" id="overlay"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h2 id="bankNameSide">Bank</h2>
+      <p>Premium Banking</p>
+    </div>
+    <div class="nav-item active" data-page="dashboard"><span class="icon">🏠</span> Dashboard</div>
+    <div class="nav-item" data-page="transactions"><span class="icon">📊</span> Transactions</div>
+    <div class="nav-item" data-page="cards"><span class="icon">💳</span> My Cards</div>
+    <div class="nav-item" data-page="transfer"><span class="icon">↗️</span> Local Transfer</div>
+    <div class="nav-item" data-page="interbank"><span class="icon">🔗</span> Bank Transfer</div>
+    <div class="nav-item" data-page="wire"><span class="icon">🌍</span> International Wire</div>
+    <div class="nav-item" data-page="deposit"><span class="icon">⬇️</span> Deposit</div>
+    <div class="nav-item" data-page="withdraw"><span class="icon">⬆️</span> Withdraw</div>
+    <div class="nav-item" data-page="loan"><span class="icon">💰</span> Loan Request</div>
+    <div class="nav-item" data-page="loans"><span class="icon">📜</span> Loan History</div>
+    <div class="nav-item" data-page="notifications"><span class="icon">🔔</span> Notifications</div>
+    <div class="nav-item" data-page="settings"><span class="icon">⚙️</span> Settings</div>
+    <div class="nav-item" data-page="support"><span class="icon">💬</span> Support</div>
+    <div class="nav-item" data-page="logout"><span class="icon">🚪</span> Logout</div>
+  </aside>
+
+  <header class="header" id="mainHeader">
+    <div class="header-top">
+      <button class="menu-btn" id="menuBtn">☰</button>
+      <div class="user-info">
+        <div>
+          <div class="user-name" id="userName">User</div>
+          <div class="user-role" id="bankName">Bank</div>
+        </div>
+        <div class="avatar" id="userInitials">U</div>
+      </div>
+    </div>
+
+    <div class="balance-card">
+      <div class="balance-label">Total Balance</div>
+      <div class="balance-amount" id="balanceDisplay">$0.00</div>
+      <div class="balance-growth">▲ +4.2% this month</div>
+      <div class="balance-warning" id="balanceWarning">⚠️ Account is in overdraft</div>
+      <div class="account-line">
+        <span>Account Number</span>
+        <span id="accountNumber">—</span>
+      </div>
+      <div class="account-line">
+        <span>Account Holder</span>
+        <span id="accountHolder">—</span>
+      </div>
+
+      <div class="quick-actions">
+        <button class="qa-btn" data-goto="transfer"><span class="icon">↗️</span>Send</button>
+        <button class="qa-btn" data-goto="deposit"><span class="icon">⬇️</span>Deposit</button>
+        <button class="qa-btn" data-goto="transactions"><span class="icon">📊</span>History</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <section class="page active" id="page-dashboard">
+      <div class="section-title">
+        <span>Virtual Card</span>
+        <span class="view-all" data-goto="cards">Manage →</span>
+      </div>
+
+      <div class="virtual-card">
+        <div class="vc-top">
+          <div class="vc-brand">BANK CARD</div>
+          <div class="vc-type">DEBIT</div>
+        </div>
+        <div class="vc-number">4532 •••• •••• 8842</div>
+        <div class="vc-bottom">
+          <div><span>CARD HOLDER</span><strong id="cardHolder">—</strong></div>
+          <div><span>EXPIRES</span><strong>09/28</strong></div>
+          <div><span>CVV</span><strong>•••</strong></div>
+        </div>
+      </div>
+
+      <div class="section-title">
+        <span>Recent Activity</span>
+        <span class="view-all" data-goto="transactions">View All →</span>
+      </div>
+
+      <div class="card">
+        <ul class="tx-list" id="recentTx"></ul>
+      </div>
+    </section>
+
+    <section class="page" id="page-transactions">
+      <div class="section-title">Transaction History</div>
+      <div class="card">
+        <div id="fullTx"></div>
+      </div>
+    </section>
+
+    <section class="page" id="page-cards">
+      <div class="section-title">My Cards</div>
+      <div class="virtual-card">
+        <div class="vc-top">
+          <div class="vc-brand">PRIMARY CARD</div>
+          <div class="vc-type">DEBIT</div>
+        </div>
+        <div class="vc-number">4532 •••• •••• 8842</div>
+        <div class="vc-bottom">
+          <div><span>CARD HOLDER</span><strong id="cardHolder2">—</strong></div>
+          <div><span>EXPIRES</span><strong>09/28</strong></div>
+          <div><span>CVV</span><strong>•••</strong></div>
+        </div>
+      </div>
+      <div class="virtual-card alt-card">
+        <div class="vc-top">
+          <div class="vc-brand">VIRTUAL CARD</div>
+          <div class="vc-type">ONLINE ONLY</div>
+        </div>
+        <div class="vc-number">5412 •••• •••• 2271</div>
+        <div class="vc-bottom">
+          <div><span>CARD HOLDER</span><strong id="cardHolder3">—</strong></div>
+          <div><span>EXPIRES</span><strong>03/27</strong></div>
+          <div><span>CVV</span><strong>•••</strong></div>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="showToast('New card created')">+ Create New Virtual Card</button>
+      <button class="danger-btn" style="margin-top: 8px;" onclick="showToast('Card frozen')">❄️ Freeze Card</button>
+    </section>
+
+    <section class="page" id="page-transfer">
+      <div class="section-title">Local Transfer</div>
+      <div class="card">
+        <div class="form-group">
+          <label>Beneficiary Name</label>
+          <input type="text" id="transferName" placeholder="e.g. Ayomide Johnson">
+        </div>
+        <div class="form-group">
+          <label>Account Number</label>
+          <input type="text" id="transferAcct" placeholder="10-digit account number">
+        </div>
+        <div class="form-group">
+          <label>Bank Name</label>
+          <select id="transferBank">
+            <option>Apex Capital</option>
+            <option>CyberbankPAT</option>
+            <option>First National</option>
+            <option>Union Trust</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Amount ($)</label>
+          <input type="number" id="transferAmount" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <input type="text" id="transferNote" placeholder="Optional note">
+        </div>
+        <button class="btn-primary" onclick="doTransfer()">Send Transfer</button>
+      </div>
+    </section>
+
+    <section class="page" id="page-interbank">
+      <div class="section-title">🔗 Bank Transfer</div>
+      <div class="card">
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 14px; line-height: 1.6;">
+          Send money to the other bank. Works instantly.
+        </p>
+        <div class="form-group">
+          <label>From</label>
+          <input type="text" id="interbankFrom" readonly>
+        </div>
+        <div class="form-group">
+          <label>To</label>
+          <input type="text" id="interbankTo" readonly>
+        </div>
+        <div class="form-group">
+          <label>Amount ($)</label>
+          <input type="number" id="interbankAmount" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label>Note (optional)</label>
+          <input type="text" id="interbankNote" placeholder="Reason for transfer">
+        </div>
+        <button class="btn-primary" onclick="doInterbank()">Send to Other Bank</button>
+      </div>
+    </section>
+
+    <section class="page" id="page-wire">
+      <div class="section-title">International Wire</div>
+      <div class="card">
+        <div class="form-group">
+          <label>Method</label>
+          <select id="wireMethod">
+            <option>Wire Transfer</option>
+            <option>PayPal</option>
+            <option>Cash App</option>
+            <option>Zelle</option>
+            <option>Venmo</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Recipient Email / Wallet</label>
+          <input type="text" id="wireRecipient" placeholder="name@example.com">
+        </div>
+        <div class="form-group">
+          <label>Amount ($)</label>
+          <input type="number" id="wireAmount" placeholder="0.00">
+        </div>
+        <button class="btn-primary" onclick="doWire()">Send Wire</button>
+      </div>
+    </section>
+
+    <section class="page" id="page-deposit">
+      <div class="mini-balance">
+        <div class="label">Current Balance</div>
+        <div class="amount" id="balanceDisplay2">$0.00</div>
+      </div>
+      <div class="section-title">Deposit Funds</div>
+      <div class="card">
+        <div class="form-group">
+          <label>Amount ($)</label>
+          <input type="number" id="depositAmount" placeholder="0.00">
+        </div>
+        <button class="btn-primary" onclick="doDeposit()">Deposit Funds</button>
+      </div>
+    </section>
+
+    <section class="page" id="page-withdraw">
+      <div class="mini-balance">
+        <div class="label">Current Balance</div>
+        <div class="amount" id="balanceDisplay3">$0.00</div>
+      </div>
+      <div class="section-title">Withdraw Funds</div>
+      <div class="card">
+        <div class="form-group">
+          <label>Amount ($)</label>
+          <input type="number" id="withdrawAmount" placeholder="0.00">
+        </div>
+        <button class="btn-primary" onclick="doWithdraw()">Withdraw Funds</button>
+      </div>
+    </section>
+
+    <section class="page" id="page-loan">
+      <div class="section-title">Loan Request</div>
+      <div class="card">
+        <div class="form-group">
+          <label>Loan Amount ($100 – $100,000)</label>
+          <input type="number" id="loanAmount" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label>Purpose</label>
+          <select id="loanPurpose">
+            <option>Personal</option>
+            <option>Business</option>
+            <option>Education</option>
+            <option>Emergency</option>
+          </select>
+        </div>
+        <p style="font-size: 12.5px; color: #64748b; margin: 10px 0; line-height: 1.6;">
+          ℹ️ Interest varies by amount (5%–18%). Funds arrive in your balance <strong>3 minutes</strong> after approval.
+        </p>
+        <button class="btn-primary" onclick="requestLoan()">Request Loan</button>
+      </div>
+
+      <div class="card" id="activeLoanCard" style="display:none;">
+        <div class="section-title" style="margin-bottom: 12px;">Active Loan</div>
+        <div id="activeLoanDetails"></div>
+        <button class="btn-primary" style="margin-top: 12px;" onclick="repayLoan()">Repay Loan</button>
+      </div>
+    </section>
+
+    <section class="page" id="page-loans">
+      <div class="section-title">Loan History</div>
+      <div class="card">
+        <div id="loanHistoryList"></div>
+      </div>
+    </section>
+
+    <section class="page" id="page-notifications">
+      <div class="section-title">🔔 Notifications</div>
+      <div class="card">
+        <div id="notificationsList"></div>
+      </div>
+    </section>
+
+    <section class="page" id="page-settings">
+      <div class="section-title">Settings</div>
+
+      <div class="card">
+        <div class="section-title" style="margin-bottom: 14px;">Overdraft</div>
+        <div class="form-group">
+          <label>Overdraft Limit ($)</label>
+          <input type="number" id="overdraftInput" value="2000">
+        </div>
+        <button class="btn-primary" onclick="saveOverdraft()">Save Overdraft Limit</button>
+      </div>
+
+      <div class="card">
+        <div class="section-title" style="margin-bottom: 14px;">Account Security</div>
+        <p style="font-size: 12.5px; color: #64748b; margin-bottom: 14px; line-height: 1.5;">
+          Freezing locks all transactions for 3 minutes.
+        </p>
+        <button class="danger-btn" id="freezeBtn" onclick="freezeAccount()">❄️ Freeze Account</button>
+        <button class="btn-primary" id="unfreezeBtn" style="display:none; margin-top:8px; background: linear-gradient(90deg, #22c55e, #16a34a);" onclick="unfreezeAccount()">🔓 Unfreeze Account</button>
+      </div>
+
+      <div class="card">
+        <div class="section-title" style="margin-bottom: 14px;">Reset</div>
+        <p style="font-size: 12.5px; color: #64748b; margin-bottom: 14px;">
+          Clears all saved data.
+        </p>
+        <button class="danger-btn" onclick="resetApp()">🗑️ Reset All Data</button>
+      </div>
+    </section>
+
+    <section class="page" id="page-support">
+      <div class="section-title">Support</div>
+      <div class="card">
+        <p style="font-size: 13.5px; color: #475569; line-height: 1.7; margin-bottom: 14px;">
+          Need help? Reach out to our support team.
+        </p>
+        <button class="btn-primary" onclick="showToast('Live chat opening...')">💬 Start Live Chat</button>
+      </div>
+    </section>
+
+    <section class="page" id="page-logout">
+      <div class="section-title">Logout</div>
+      <div class="card" style="text-align:center;">
+        <p style="font-size: 14px; color: #475569; margin-bottom: 16px;">Are you sure you want to log out?</p>
+        <button class="btn-primary" onclick="logout()">Yes, Log Out</button>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div>© 2025 Banks — Apex Capital & CyberbankPAT</div>
+  </footer>
+
+  <div id="toast"></div>
+
+</div>
+
+<script src="data.js"></script>
+<script src="render.js"></script>
+<script src="app.js"></script>
+<script src="bank.js"></script>
+<script src="loans.js"></script>
+</body>
+</html>
